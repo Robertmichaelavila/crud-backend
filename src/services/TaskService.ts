@@ -11,8 +11,8 @@ export class TaskService {
     // valida se o usuário pertence ao projeto
     const member = await prisma.projectMember.findFirst({
       where: {
-        projectId: data.projectId,
-        userId: data.userId
+        userId: data.userId,
+        projectId: data.projectId
       }
     })
 
@@ -26,12 +26,29 @@ export class TaskService {
   }
 
   async findAll(userId: string, projectId: string) {
-    return prisma.task.findMany({
+    // 1. valida acesso ao projeto
+    const member = await prisma.projectMember.findUnique({
       where: {
-        projectId,
-        project: {
-          members: {
-            some: { userId }
+        userId_projectId: {
+          userId,
+          projectId
+        }
+      }
+    })
+
+    if (!member) {
+      throw new Error('Access denied')
+    }
+
+    // 2. busca tasks
+    return prisma.task.findMany({
+      where: { projectId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
           }
         }
       }

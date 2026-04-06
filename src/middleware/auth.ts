@@ -1,23 +1,38 @@
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'secret'
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET not defined')
+}
+
+const JWT_SECRET = process.env.JWT_SECRET
 
 export function authMiddleware(
   req: Request,
   res: Response,
   next: NextFunction
 ) {
-  const authHeader = req.headers.authorization
+  // 1. Tenta obter token do cookie (httpOnly)
+  let token = req.cookies?.token;
 
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Token missing' })
+  // 2. Se não houver, tenta do header Authorization
+  if (!token) {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7); // remove "Bearer "
+    }
   }
 
-  const [, token] = authHeader.split(' ')
+  if (!token) {
+    return res.status(401).json({ error: 'Token missing' });
+  }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET)
+    const decoded = jwt.verify(token, JWT_SECRET) as {id: string}
+
+    if (!decoded.id) {
+      return res.status(401).json({ error: 'Invalid token' })
+    }
     req.user = decoded as { id: string }
     next()
   } catch {
